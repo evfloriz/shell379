@@ -1,0 +1,5 @@
+# ignore main executable
+main
+
+# ignore code scraps
+code_scraps.c
