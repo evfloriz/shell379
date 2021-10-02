@@ -3,23 +3,23 @@
 #include <stdlib.h>
 #include <ctype.h>
 
-char **splitString(char *string, int *numArgs) {
+char **split_string(char *string, int *num_args) {
     // https://stackoverflow.com/questions/9210528/split-string-with-delimiters-in-c
     
     char **result;
-    char *countString = strdup(string);
+    char *count_string = strdup(string);
     
     // run strtok to count how many tokens
     int count = 0;
-    char *countToken;
+    char *count_token;
 
-    countToken = strtok(countString, " ");
-    while (countToken != NULL) {
-        countToken = strtok(NULL, " ");
+    count_token = strtok(count_string, " ");
+    while (count_token != NULL) {
+        count_token = strtok(NULL, " ");
         count++;
     }
 
-    *numArgs = count;
+    *num_args = count;
 
     // allocate the right number of strings
     result = malloc(sizeof(char*) * count);
@@ -40,7 +40,7 @@ char **splitString(char *string, int *numArgs) {
     return result;
 }
 
-int isNumber(char *s) {
+int is_number(char *s) {
     int i=0;
     while (s[i] != '\0') {
         if (isdigit(s[i]) == 0) {
@@ -79,30 +79,30 @@ int call_wait(int arg) {
     printf("wait %d called\n", arg);
     return 0;
 }
-int call_command(char **args, int numArgs) {
-    printf("command called with %d args\n", numArgs);
-    for (int i=0; i<numArgs; i++) {
+int call_command(char **args, int num_args) {
+    printf("command called with %d args\n", num_args);
+    for (int i=0; i<num_args; i++) {
             printf(" %d: %s\n", i, args[i]);
     }
     return 0;
 }
 
-int parse(char **command, int numArgs) {
+int parse(char **command, int num_args) {
     // interate through tokens
     // if first token is exit or jobs, make sure there's no other args and then launch
     // if first token is kill, resume, sleep, suspend, wait, make sure there's a second int arg and nothing else, then launch
 
-    if (numArgs == 0) {
+    if (num_args == 0) {
         return 0;
     }
     
-    char *firstToken = command[0];
-    int isInvalid = 0;
+    char *first_token = command[0];
+    int is_invalid = 0;
     int success = 0;
 
-    if (strcmp(firstToken, "exit") == 0) {
-        if (numArgs != 1) {
-            isInvalid = 1;
+    if (strcmp(first_token, "exit") == 0) {
+        if (num_args != 1) {
+            is_invalid = 1;
         }
         else {
             // bit of a hacky free, not sure how to do this better.
@@ -110,62 +110,62 @@ int parse(char **command, int numArgs) {
             success = call_exit();
         }
     }
-    else if (strcmp(firstToken, "jobs") == 0) {
-        if (numArgs != 1) {
-            isInvalid = 1;
+    else if (strcmp(first_token, "jobs") == 0) {
+        if (num_args != 1) {
+            is_invalid = 1;
         }
         else {
             success = call_jobs();
         }
     }
-    else if (strcmp(firstToken, "kill") == 0) {
-        if (numArgs != 2 || !isNumber(command[1])) {
-            isInvalid = 1;
+    else if (strcmp(first_token, "kill") == 0) {
+        if (num_args != 2 || !is_number(command[1])) {
+            is_invalid = 1;
         }
         else {
             success = call_kill(atoi(command[1]));
         }
     }
-    else if (strcmp(firstToken, "resume") == 0) {
-        if (numArgs != 2 || !isNumber(command[1])) {
-            isInvalid = 1;
+    else if (strcmp(first_token, "resume") == 0) {
+        if (num_args != 2 || !is_number(command[1])) {
+            is_invalid = 1;
         }
         else {
             success = call_resume(atoi(command[1]));
         }
         
     }
-    else if (strcmp(firstToken, "sleep") == 0) {
-        if (numArgs != 2 || !isNumber(command[1])) {
-            isInvalid = 1;
+    else if (strcmp(first_token, "sleep") == 0) {
+        if (num_args != 2 || !is_number(command[1])) {
+            is_invalid = 1;
         }
         else {
             success = call_sleep(atoi(command[1]));
         }
         
     }
-    else if (strcmp(firstToken, "suspend") == 0) {
-        if (numArgs != 2 || !isNumber(command[1])) {
-            isInvalid = 1;
+    else if (strcmp(first_token, "suspend") == 0) {
+        if (num_args != 2 || !is_number(command[1])) {
+            is_invalid = 1;
         }
         else {
             success = call_suspend(atoi(command[1]));
         }
         
     }
-    else if (strcmp(firstToken, "wait") == 0) {
-        if (numArgs != 2 || !isNumber(command[1])) {
-            isInvalid = 1;
+    else if (strcmp(first_token, "wait") == 0) {
+        if (num_args != 2 || !is_number(command[1])) {
+            is_invalid = 1;
         }
         else {
             success = call_wait(atoi(command[1]));
         }
     }
     else {
-        success = call_command(command, numArgs);
+        success = call_command(command, num_args);
     }
 
-    if (isInvalid) {
+    if (is_invalid) {
         printf("Invalid command\n");
         success = 1;
     }
@@ -184,18 +184,18 @@ int main() {
         fgets(input, n, stdin);
 
         // change newline char to null char
-        int inputLength = strlen(input);
-        if (inputLength > 0 && input[inputLength-1] == '\n') {
-            input[inputLength-1] = '\0';
+        int input_length = strlen(input);
+        if (input_length > 0 && input[input_length-1] == '\n') {
+            input[input_length-1] = '\0';
         }
 
         char **command;
-        int numArgs = 0;
+        int num_args = 0;
 
         // split string
-        command = splitString(input, &numArgs);
+        command = split_string(input, &num_args);
 
-        parse(command, numArgs);
+        parse(command, num_args);
 
         free(command);
     }
