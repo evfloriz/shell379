@@ -123,21 +123,6 @@ void sigchld_handler(int sig, siginfo_t *info, void *context) {
     waitpid(pid, &status, WNOHANG);
 }
 
-/*void sigchld_handler(int sig) {
-    // https://stackoverflow.com/questions/2595503/determine-pid-of-terminated-process
-
-    pid_t pid;
-    int status;
-
-    
-    pid = waitpid(-1, &status, WNOHANG);
-    printf("zombie process - sig, pid: %d, %d\n", sig, (int)pid);
-
-    while ((pid = waitpid(-1, &status, WNOHANG)) != -1) {
-        printf("zombie process - sig, pid: %d, %d\n", sig, (int)pid);
-    }    
-}*/
-
 // handle each kind of command
 
 int call_exit(char **command, struct Process **processes) {
