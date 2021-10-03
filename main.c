@@ -7,7 +7,6 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 
-
 char **split_string(char *string, int *num_args) {
     // https://stackoverflow.com/questions/9210528/split-string-with-delimiters-in-c
     
@@ -100,7 +99,9 @@ struct Process {
     char *command;
 };
 
-void free_memory(char **command, struct Process **processes) {
+struct Process **processes;
+
+void free_memory(char **command) {
     free(command);
     
     int i = 0;
@@ -125,16 +126,16 @@ void sigchld_handler(int sig, siginfo_t *info, void *context) {
 
 // handle each kind of command
 
-int call_exit(char **command, struct Process **processes) {
+int call_exit(char **command) {
     // exit program
 
     //
     // kill every process i think
-    free_memory(command, processes);
+    free_memory(command);
 
     exit(0);
 }
-int call_jobs(struct Process **processes) {
+int call_jobs() {
     // print jobs from the table
     printf(" # |     PID | S | SEC | COMMAND\n");
     
@@ -153,7 +154,7 @@ int call_jobs(struct Process **processes) {
 
     return 0;
 }
-int call_kill(int arg, struct Process **processes) {
+int call_kill(int arg) {
     printf("kill %d called\n", arg);
 
     int i = 0;
@@ -186,35 +187,35 @@ int call_kill(int arg, struct Process **processes) {
 
     return 0;
 }
-int call_resume(int arg/*, struct Process **processes*/) {
+int call_resume(int arg) {
     printf("resume %d called\n", arg);
     // send suspend signal to the right pid
 
 
     return 0;
 }
-int call_sleep(int arg/*, struct Process **processes*/) {
+int call_sleep(int arg) {
     printf("sleep %d called\n", arg);
     // call sleep for the specified number of seconds
 
 
     return 0;
 }
-int call_suspend(int arg/*, struct Process **processes*/) {
+int call_suspend(int arg) {
     printf("suspend %d called\n", arg);
 
     // send suspend signal to the right pid
 
     return 0;
 }
-int call_wait(int arg/*, struct Process **processes*/) {
+int call_wait(int arg) {
     printf("wait %d called\n", arg);
 
     // if you aren't the right pid, wait until that pid is completed
 
     return 0;
 }
-int call_command(char **args, int num_args, struct Process **processes) {
+int call_command(char **args, int num_args) {
     
 
     // need to fork a process and add it to the process control block
@@ -268,7 +269,7 @@ int call_command(char **args, int num_args, struct Process **processes) {
     return 0;
 }
 
-int parse(char **command, int num_args, struct Process **processes) {
+int parse(char **command, int num_args) {
     // interate through tokens
     // if first token is exit or jobs, make sure there's no other args and then launch
     // if first token is kill, resume, sleep, suspend, wait, make sure there's a second int arg and nothing else, then launch
@@ -287,7 +288,7 @@ int parse(char **command, int num_args, struct Process **processes) {
             is_invalid = 1;
         }
         else {
-            success = call_exit(command, processes);
+            success = call_exit(command);
         }
     }
     else if (strcmp(first_token, "jobs") == 0) {
@@ -295,7 +296,7 @@ int parse(char **command, int num_args, struct Process **processes) {
             is_invalid = 1;
         }
         else {
-            success = call_jobs(processes);
+            success = call_jobs();
         }
     }
     else if (strcmp(first_token, "kill") == 0) {
@@ -303,7 +304,7 @@ int parse(char **command, int num_args, struct Process **processes) {
             is_invalid = 1;
         }
         else {
-            success = call_kill(atoi(command[1]), processes);
+            success = call_kill(atoi(command[1]));
         }
     }
     else if (strcmp(first_token, "resume") == 0) {
@@ -311,7 +312,7 @@ int parse(char **command, int num_args, struct Process **processes) {
             is_invalid = 1;
         }
         else {
-            success = call_resume(atoi(command[1])/*, processes*/);
+            success = call_resume(atoi(command[1]));
         }
         
     }
@@ -320,7 +321,7 @@ int parse(char **command, int num_args, struct Process **processes) {
             is_invalid = 1;
         }
         else {
-            success = call_sleep(atoi(command[1])/*, processes*/);
+            success = call_sleep(atoi(command[1]));
         }
         
     }
@@ -329,7 +330,7 @@ int parse(char **command, int num_args, struct Process **processes) {
             is_invalid = 1;
         }
         else {
-            success = call_suspend(atoi(command[1])/*, processes*/);
+            success = call_suspend(atoi(command[1]));
         }
         
     }
@@ -338,11 +339,11 @@ int parse(char **command, int num_args, struct Process **processes) {
             is_invalid = 1;
         }
         else {
-            success = call_wait(atoi(command[1])/*, processes*/);
+            success = call_wait(atoi(command[1]));
         }
     }
     else {
-        success = call_command(command, num_args, processes);
+        success = call_command(command, num_args);
     }
 
     if (is_invalid) {
@@ -360,7 +361,7 @@ int main() {
     char input[n];
 
     // allocate max number of processes + 1 for null
-    struct Process **processes = malloc(sizeof(struct Process*) * 33);
+    processes = malloc(sizeof(struct Process*) * 33);
     processes[0] = NULL;
 
     // initialize sig_chld handler
@@ -400,7 +401,7 @@ int main() {
         // split string
         command = split_string(input, &num_args);
 
-        parse(command, num_args, processes);
+        parse(command, num_args);
 
         //free(command);
     }
