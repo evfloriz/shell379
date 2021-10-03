@@ -3,3 +3,10 @@ main
 
 # ignore code scraps
 code_scraps.c
+
+# ignore some test code functions
+fork_test.c
+fork_test
+
+slow_print.c
+slow_print

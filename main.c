@@ -2,6 +2,11 @@
 #include <string.h>
 #include <stdlib.h>
 #include <ctype.h>
+#include <unistd.h>
+#include <signal.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+
 
 char **split_string(char *string, int *num_args) {
     // https://stackoverflow.com/questions/9210528/split-string-with-delimiters-in-c
@@ -108,6 +113,31 @@ void free_memory(char **command, struct Process **processes) {
     free(processes);
 }
 
+// signal handler
+void sigchld_handler(int sig, siginfo_t *info, void *context) {
+    // https://stackoverflow.com/questions/2595503/determine-pid-of-terminated-process
+
+    pid_t pid = info->si_pid;
+    int status;
+
+    waitpid(pid, &status, WNOHANG);
+}
+
+/*void sigchld_handler(int sig) {
+    // https://stackoverflow.com/questions/2595503/determine-pid-of-terminated-process
+
+    pid_t pid;
+    int status;
+
+    
+    pid = waitpid(-1, &status, WNOHANG);
+    printf("zombie process - sig, pid: %d, %d\n", sig, (int)pid);
+
+    while ((pid = waitpid(-1, &status, WNOHANG)) != -1) {
+        printf("zombie process - sig, pid: %d, %d\n", sig, (int)pid);
+    }    
+}*/
+
 // handle each kind of command
 
 int call_exit(char **command, struct Process **processes) {
@@ -121,11 +151,11 @@ int call_exit(char **command, struct Process **processes) {
 }
 int call_jobs(struct Process **processes) {
     // print jobs from the table
-    printf(" # |    PID | S | SEC | COMMAND\n");
+    printf(" # |     PID | S | SEC | COMMAND\n");
     
     int i = 0;
     while (processes[i] != NULL) {
-        printf("%2d | %6d | %c | %3d | %s\n",
+        printf("%2d | %7d | %c | %3d | %s\n",
             i,
             processes[i]->pid,
             processes[i]->status,
@@ -146,6 +176,7 @@ int call_kill(int arg, struct Process **processes) {
         if (processes[i]->pid == arg) {
             // kill process
             
+            // this should be moved to a terminate interrupt handler
             // remove from pcb
             // move each element greater down 1
             int pos = i;
@@ -199,37 +230,31 @@ int call_wait(int arg/*, struct Process **processes*/) {
     return 0;
 }
 int call_command(char **args, int num_args, struct Process **processes) {
-    // needs to execute any unix command or executable in $PATH
-
-    // https://stackoverflow.com/questions/8465006/how-do-i-concatenate-two-strings-in-c
-
-    char *path_value = getenv("PATH");
-    char *path_init = "PATH=";
-
-    char *full_path = malloc((strlen(path_value) + strlen(path_init) + 1) * sizeof(char));
     
-    // check for malloc failure
-    if (full_path == NULL) {
-        free(full_path);
-        return -1;
-    }
-
-    strcpy(full_path, path_init);
-    strcat(full_path, path_value);
-
-    //printf("%s\n", full_path);
-
-    
-    //char *path_env[] = {path, NULL};
 
     // need to fork a process and add it to the process control block
+    int child_pid = fork();
+    if (child_pid < 0) {
+        perror("fork problem: ");
+        _exit(1);
+    }
+    else if (child_pid == 0) {
+        //printf("executing child with pid: %d\n", (int) getpid());
+        //if (execve(args[0], args, path_env) < 0) {
+        if (execvp(args[0], args) < 0) {
+            perror("exec problem: ");
+            _exit(1);
+        }
+    }
 
     // also need to parse any args for piping and running in the background
 
+    // parent resumes execution
+
     // add to process control block
     struct Process *process = malloc(sizeof(struct Process));
-    process->pid = 12;
-    process->status = 'Z';
+    process->pid = child_pid;
+    process->status = 'R';
     process->time = 0;
     process->command = convert_command_to_string(args, num_args);
 
@@ -243,7 +268,7 @@ int call_command(char **args, int num_args, struct Process **processes) {
     // need a process number?
     //process->number = process_index;
     // try changing up pid
-    process->pid = process_index + 12;
+    //process->pid = process_index + 12;
     
     processes[process_index] = process;
     processes[process_index+1] = NULL;
@@ -253,7 +278,7 @@ int call_command(char **args, int num_args, struct Process **processes) {
             printf(" %d: %s\n", i, args[i]);
     }*/
 
-    free(full_path);
+    //free(full_path)
 
     return 0;
 }
@@ -353,7 +378,24 @@ int main() {
     struct Process **processes = malloc(sizeof(struct Process*) * 33);
     processes[0] = NULL;
 
-    printf("Welcome to shell379. \n");
+    // initialize sig_chld handler
+    struct sigaction sa;
+    // init sa
+    //sa.sa_flags = 0;
+    // specify restart in case interrupt happens while waiting for fgets
+    sa.sa_flags = SA_RESTART | SA_SIGINFO;
+    sigemptyset(&sa.sa_mask);
+    //sa.sa_handler = sigchld_handler;
+    sa.sa_sigaction = sigchld_handler;
+    sigaction(SIGCHLD, &sa, NULL);
+    
+    /*if (signal(SIGCHLD, sigchld_handler) == SIG_ERR) {
+        perror("Can't catch SIGCHLD");
+    }*/
+
+
+    printf("Welcome to shell379.\n");
+    printf("PID: %d.\n", (int)getpid());
 
     // replace this with 1 once things are working, just making sure I don't fork bomb accidentally
     int limiter = 0;
