@@ -18,6 +18,7 @@ char **split_string(char *string, int *num_args) {
         count_token = strtok(NULL, " ");
         count++;
     }
+    free(count_string);
 
     *num_args = count;
 
@@ -54,89 +55,150 @@ int is_number(char *s) {
     return 1;
 }
 
-/*char *print_command(char **args, num_args) {
+char *convert_command_to_string(char **args, int num_args) {
+    // return null if no args (shouldn't happen)
+    if (num_args == 0) {
+        return "\0";
+    }
+    
     int size = 0;
     for (int i=0; i<num_args; i++) {
-        // add length of arg + 1 for space or null
+        // add length of arg + 1 for space
         size += strlen(args[i]) + 1;
     }
     
-    char *command = malloc((strlen(path_value) + strlen(path_init)) * sizeof(char));
+    // add +1 for null
+    char *command_string = malloc(size + 1 * sizeof(char));
     
     // check for malloc failure
-    if (full_path == NULL) {
-        return -1;
+    if (command_string == NULL) {
+        return "\0";
     }
 
-    strcpy(full_path, path_init);
-    strcat(full_path, path_value);
-}*/
+    command_string[0] = '\0';
+
+    for (int i=0; i<num_args; i++) {
+        strcat(command_string, args[i]);
+        strcat(command_string, " ");
+    }
+    strcat(command_string, "\0");
+
+    return command_string;
+}
 
 // Process control block
-/*struct Process {
+struct Process {
     int number;
     int pid;
     char status;
     int time;
-    char **command;
-};*/
+    char *command;
+};
+
+void free_memory(char **command, struct Process **processes) {
+    free(command);
+    
+    int i = 0;
+    while (processes[i] != NULL) {
+        free(processes[i]->command);
+        free(processes[i]);
+        i++;
+    }
+
+    free(processes);
+}
 
 // handle each kind of command
 
-int call_exit() {
+int call_exit(char **command, struct Process **processes) {
     // exit program
 
     //
     // kill every process i think
+    free_memory(command, processes);
 
     exit(0);
 }
-int call_jobs() {
-    printf("jobs called\n");
-
+int call_jobs(struct Process **processes) {
     // print jobs from the table
+    printf(" # |    PID | S | SEC | COMMAND\n");
+    
+    int i = 0;
+    while (processes[i] != NULL) {
+        printf("%2d | %6d | %c | %3d | %s\n",
+            i,
+            processes[i]->pid,
+            processes[i]->status,
+            processes[i]->time,
+            processes[i]->command);
 
-
+        i++;
+    }
+        
 
     return 0;
 }
-int call_kill(int arg) {
+int call_kill(int arg, struct Process **processes) {
     printf("kill %d called\n", arg);
+
+    int i = 0;
+    while (processes[i] != NULL) {
+        if (processes[i]->pid == arg) {
+            // kill process
+            
+            // remove from pcb
+            // move each element greater down 1
+            int pos = i;
+
+            free(processes[pos]->command);
+            free(processes[pos]);
+            
+
+            while (processes[pos] != NULL) {
+                processes[pos] = processes[pos + 1];
+                pos++;
+            }
+            return 0;
+        }
+        i++;
+    }
+
+    return -1;
 
     // send kill signal to the right pid
 
 
     return 0;
 }
-int call_resume(int arg) {
+int call_resume(int arg/*, struct Process **processes*/) {
     printf("resume %d called\n", arg);
     // send suspend signal to the right pid
 
 
     return 0;
 }
-int call_sleep(int arg) {
+int call_sleep(int arg/*, struct Process **processes*/) {
     printf("sleep %d called\n", arg);
     // call sleep for the specified number of seconds
 
 
     return 0;
 }
-int call_suspend(int arg) {
+int call_suspend(int arg/*, struct Process **processes*/) {
     printf("suspend %d called\n", arg);
 
     // send suspend signal to the right pid
 
     return 0;
 }
-int call_wait(int arg) {
+int call_wait(int arg/*, struct Process **processes*/) {
     printf("wait %d called\n", arg);
 
     // if you aren't the right pid, wait until that pid is completed
 
     return 0;
 }
-int call_command(char **args, int num_args) {
+int call_command(char **args, int num_args, struct Process **processes) {
     // needs to execute any unix command or executable in $PATH
 
     // https://stackoverflow.com/questions/8465006/how-do-i-concatenate-two-strings-in-c
@@ -144,10 +206,11 @@ int call_command(char **args, int num_args) {
     char *path_value = getenv("PATH");
     char *path_init = "PATH=";
 
-    char *full_path = malloc((strlen(path_value) + strlen(path_init)) * sizeof(char));
+    char *full_path = malloc((strlen(path_value) + strlen(path_init) + 1) * sizeof(char));
     
     // check for malloc failure
     if (full_path == NULL) {
+        free(full_path);
         return -1;
     }
 
@@ -156,6 +219,7 @@ int call_command(char **args, int num_args) {
 
     //printf("%s\n", full_path);
 
+    
     //char *path_env[] = {path, NULL};
 
     // need to fork a process and add it to the process control block
@@ -163,21 +227,38 @@ int call_command(char **args, int num_args) {
     // also need to parse any args for piping and running in the background
 
     // add to process control block
-    /*struct Process *process = malloc(sizeof(struct Process));
-    process->number = 0;
+    struct Process *process = malloc(sizeof(struct Process));
     process->pid = 12;
     process->status = 'Z';
     process->time = 0;
-    process->command = args;*/
+    process->command = convert_command_to_string(args, num_args);
 
-    printf("command called with %d args\n", num_args);
+    // code to find the last process and add it to the list
+    // refactor a bit
+    int process_index=0;
+    while (processes[process_index] != NULL) {
+        process_index++;
+    }
+    
+    // need a process number?
+    //process->number = process_index;
+    // try changing up pid
+    process->pid = process_index + 12;
+    
+    processes[process_index] = process;
+    processes[process_index+1] = NULL;
+
+    /*printf("command called with %d args\n", num_args);
     for (int i=0; i<num_args; i++) {
             printf(" %d: %s\n", i, args[i]);
-    }
+    }*/
+
+    free(full_path);
+
     return 0;
 }
 
-int parse(char **command, int num_args) {
+int parse(char **command, int num_args, struct Process **processes) {
     // interate through tokens
     // if first token is exit or jobs, make sure there's no other args and then launch
     // if first token is kill, resume, sleep, suspend, wait, make sure there's a second int arg and nothing else, then launch
@@ -196,9 +277,7 @@ int parse(char **command, int num_args) {
             is_invalid = 1;
         }
         else {
-            // bit of a hacky free, not sure how to do this better.
-            free(command);
-            success = call_exit();
+            success = call_exit(command, processes);
         }
     }
     else if (strcmp(first_token, "jobs") == 0) {
@@ -206,7 +285,7 @@ int parse(char **command, int num_args) {
             is_invalid = 1;
         }
         else {
-            success = call_jobs();
+            success = call_jobs(processes);
         }
     }
     else if (strcmp(first_token, "kill") == 0) {
@@ -214,7 +293,7 @@ int parse(char **command, int num_args) {
             is_invalid = 1;
         }
         else {
-            success = call_kill(atoi(command[1]));
+            success = call_kill(atoi(command[1]), processes);
         }
     }
     else if (strcmp(first_token, "resume") == 0) {
@@ -222,7 +301,7 @@ int parse(char **command, int num_args) {
             is_invalid = 1;
         }
         else {
-            success = call_resume(atoi(command[1]));
+            success = call_resume(atoi(command[1])/*, processes*/);
         }
         
     }
@@ -231,7 +310,7 @@ int parse(char **command, int num_args) {
             is_invalid = 1;
         }
         else {
-            success = call_sleep(atoi(command[1]));
+            success = call_sleep(atoi(command[1])/*, processes*/);
         }
         
     }
@@ -240,7 +319,7 @@ int parse(char **command, int num_args) {
             is_invalid = 1;
         }
         else {
-            success = call_suspend(atoi(command[1]));
+            success = call_suspend(atoi(command[1])/*, processes*/);
         }
         
     }
@@ -249,11 +328,11 @@ int parse(char **command, int num_args) {
             is_invalid = 1;
         }
         else {
-            success = call_wait(atoi(command[1]));
+            success = call_wait(atoi(command[1])/*, processes*/);
         }
     }
     else {
-        success = call_command(command, num_args);
+        success = call_command(command, num_args, processes);
     }
 
     if (is_invalid) {
@@ -261,12 +340,18 @@ int parse(char **command, int num_args) {
         success = 1;
     }
 
+    free(command);
+
     return success;    
 }
 
 int main() {
     int n = 255;
     char input[n];
+
+    // allocate max number of processes + 1 for null
+    struct Process **processes = malloc(sizeof(struct Process*) * 33);
+    processes[0] = NULL;
 
     printf("Welcome to shell379. \n");
 
@@ -288,10 +373,21 @@ int main() {
         // split string
         command = split_string(input, &num_args);
 
-        parse(command, num_args);
+        parse(command, num_args, processes);
 
-        free(command);
+        //free(command);
     }
+
+    // for now, recursively free every process
+    // should be done in exit only once there's a infinite loop
+    int count_process = 0;
+    while (processes[count_process] != NULL) {
+        free(processes[count_process]->command);
+        free(processes[count_process]);
+        count_process++;
+    }
+
+    free(processes);
 
     return 0;
 
