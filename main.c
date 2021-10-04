@@ -158,11 +158,7 @@ void sigchld_handler(int sig, siginfo_t *info, void *context) {
     pid_t pid;
     int status;
 
-    // handle already dead foreground processes
-    if ((pid = waitpid(info->si_pid, &status, WNOHANG)) < 0) {
-        printf("foreground process killed: %d\n", info->si_pid);
-        remove_process(info->si_pid);
-    }
+    printf("sig handler called\n");
 
     // handle background and non-terminated child processes
     while ((pid = waitpid(-1, &status, WNOHANG | WUNTRACED | WCONTINUED)) > 0) {
@@ -177,6 +173,14 @@ void sigchld_handler(int sig, siginfo_t *info, void *context) {
         else if (WIFCONTINUED(status)) {
             update_process_status(pid, 'R');
         }
+    }
+
+    // handle already dead foreground processes
+    // remove process won't do anything on an already removed pid
+    // could be an issue if multiple zombie processes are waited at once in call_command and havent removed
+    if ((pid = waitpid(info->si_pid, &status, WNOHANG)) < 0) {
+        printf("foreground process killed: %d\n", info->si_pid);
+        remove_process(info->si_pid);
     }
 }
 
@@ -205,7 +209,9 @@ int call_exit(char **command) {
     // iterate through pids and call kill on each one
     for (int i=0; i<count_pids; i++) {
         printf("calling kill: %d\n", pids[i]);
-        call_kill(pids[i]);
+        if (call_kill(pids[i]) < 0) {
+            return -1;
+        }
     }
 
     free(pids);
@@ -242,6 +248,7 @@ int call_kill(int arg) {
     // kill process
     if (kill(arg, SIGKILL) < 0) {
         perror("Kill error: ");
+        return -1;
     }
 
     return 0;
@@ -283,6 +290,23 @@ int call_wait(int arg) {
 }
 int call_command(char **args, int num_args) {
     
+    // check for background flag
+    // if it's found, make sure it's the last input
+    int amp_flag = 0;
+
+    int amp_index = 0;
+    while (args[amp_index] != NULL) {
+        if (args[amp_index][0] == '&') {
+            // make sure its a single character and that the next position is null
+            if (args[amp_index + 1] != NULL) {
+                printf("Input error: '&' argument must be at end of line.\n");
+                return -1;
+            }
+            amp_flag = 1;
+        }
+        amp_index++;
+    }
+
     // also need to parse any args for piping
     // iterate through args
     // if first char of argument is < or >
@@ -309,6 +333,7 @@ int call_command(char **args, int num_args) {
     if (input_file != NULL) {
         if ((fd_in = open(input_file, O_RDONLY)) < 0) {
             perror("Input file error: ");
+            return -1;
         }
     }
     if (output_file != NULL) {
@@ -316,9 +341,6 @@ int call_command(char **args, int num_args) {
             perror("Output file error: ");
         }
     }
-
-    
-    
     
     // need to fork a process and add it to the process control block
     int child_pid = fork();
@@ -373,9 +395,11 @@ int call_command(char **args, int num_args) {
     processes[process_index] = process;
     processes[process_index+1] = NULL;
 
-    // wait until child process is done
-    wait(NULL);
-    printf("foreground child killed by wait\n");
+    // wait until child process is done if amp not specified
+    if (!amp_flag) {
+        wait(NULL);
+        printf("foreground child killed by wait\n");
+    }
 
     return 0;
 }
