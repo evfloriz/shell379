@@ -202,8 +202,6 @@ int call_jobs() {
     return 0;
 }
 int call_kill(int arg) {
-    printf("kill %d called\n", arg);
-
     // kill process
     if (kill(arg, SIGKILL) < 0) {
         perror("Kill error: ");
@@ -212,9 +210,7 @@ int call_kill(int arg) {
     return 0;
 }
 int call_suspend(int arg) {
-    printf("suspend %d called\n", arg);
-
-    // kill process
+    // suspend process
     if (kill(arg, SIGTSTP) < 0) {
         perror("Suspend error: ");
     }
@@ -222,8 +218,6 @@ int call_suspend(int arg) {
     return 0;
 }
 int call_resume(int arg) {
-    printf("resume %d called\n", arg);
-
     // resume process
     if (kill(arg, SIGCONT) < 0) {
         perror("Resume error: ");
@@ -234,14 +228,19 @@ int call_resume(int arg) {
 int call_sleep(int arg) {
     printf("sleep %d called\n", arg);
     // call sleep for the specified number of seconds
-
+    sleep(arg);
 
     return 0;
 }
 int call_wait(int arg) {
     printf("wait %d called\n", arg);
 
+    int status;
+
     // if you aren't the right pid, wait until that pid is completed
+    if (waitpid(arg, &status, 0) < 0) {
+        perror("Wait error: ");
+    }
 
     return 0;
 }
