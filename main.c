@@ -6,6 +6,7 @@
 #include <signal.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <sys/resource.h>
 
 char **split_string(char *string, int *num_args) {
     // https://stackoverflow.com/questions/9210528/split-string-with-delimiters-in-c
@@ -156,9 +157,11 @@ void sigchld_handler(int sig, siginfo_t *info, void *context) {
     pid_t pid = info->si_pid;
     int status;
 
+    printf("kill called on %d\n", pid);
+
     // properly handle child processes
     waitpid(pid, &status, WNOHANG | WUNTRACED | WCONTINUED);
-    if (WIFEXITED(status)) {
+    if (WIFEXITED(status) || WIFSIGNALED(status)) {
         // remove process from pcb
         remove_process(pid);
     }
@@ -176,9 +179,36 @@ int call_exit(char **command) {
     // exit program
 
     // should kill every process i think
+    // will this mess up child edits to global process
+    
+    // make a list of pids
+    // this is necessary because killing a process can change the global process table
+    int count_pids = 0;
+    while (processes[count_pids] != NULL) {
+        count_pids++;
+    }
 
-    // free memory
-    free_memory(command);
+    int *pids = malloc(count_pids * sizeof(int));
+
+    for (int i=0; i<count_pids; i++) {
+        pids[i] = processes[i]->pid;
+    }
+    
+    // iterate through pids and call kill on each one
+    for (int i=0; i<count_pids; i++) {
+        if (kill(pids[i], SIGKILL) < 0) {
+            perror("Kill error: ");
+        }
+    }
+
+    free(pids);
+
+    // something weird's happening here I think
+    // wait until everything's killed
+    while (wait(NULL) != -1);
+
+    free(command);
+    free(processes);
 
     exit(0);
 }
