@@ -7,6 +7,7 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <sys/resource.h>
+#include <fcntl.h>
 
 char **split_string(char *string, int *num_args) {
     // https://stackoverflow.com/questions/9210528/split-string-with-delimiters-in-c
@@ -157,9 +158,15 @@ void sigchld_handler(int sig, siginfo_t *info, void *context) {
     pid_t pid;
     int status;
 
-    // properly handle child processes
+    // handle already dead foreground processes
+    if ((pid = waitpid(info->si_pid, &status, WNOHANG)) < 0) {
+        printf("foreground process killed: %d\n", info->si_pid);
+        remove_process(info->si_pid);
+    }
+
+    // handle background and non-terminated child processes
     while ((pid = waitpid(-1, &status, WNOHANG | WUNTRACED | WCONTINUED)) > 0) {
-        printf("kill called on %d\n", pid);
+        printf("background process killed: %d\n", pid);
 
         if (WIFEXITED(status) || WIFSIGNALED(status)) {
             remove_process(pid);
@@ -276,6 +283,43 @@ int call_wait(int arg) {
 }
 int call_command(char **args, int num_args) {
     
+    // also need to parse any args for piping
+    // iterate through args
+    // if first char of argument is < or >
+    // take following chars as input or output file (check if null)
+    int i = 0;
+    char *input_file = NULL;
+    char *output_file = NULL;
+    while (args[i] != NULL) {
+        if (args[i][0] == '<' && args[i][1] != '\0') {
+            // ignore first character
+            input_file = args[i] + 1;
+            printf("input file: %s\n", input_file);
+        }
+        else if (args[i][0] == '>' && args[i][1] != '\0') {
+            output_file = args[i] + 1;
+            printf("output file: %s\n", output_file);
+        }
+        i++;
+    }
+
+    // create input and output file descriptions
+    int fd_in = -1;
+    int fd_out = -1;
+    if (input_file != NULL) {
+        if ((fd_in = open(input_file, O_RDONLY)) < 0) {
+            perror("Input file error: ");
+        }
+    }
+    if (output_file != NULL) {
+        if ((fd_out = open(output_file, O_WRONLY | O_CREAT, 0666)) < 0) {
+            perror("Output file error: ");
+        }
+    }
+
+    
+    
+    
     // need to fork a process and add it to the process control block
     int child_pid = fork();
     if (child_pid < 0) {
@@ -284,14 +328,32 @@ int call_command(char **args, int num_args) {
     }
     else if (child_pid == 0) {
         //printf("executing child with pid: %d\n", (int) getpid());
-        //if (execve(args[0], args, path_env) < 0) {
+        
+        // dup input to stdin
+        if (fd_in != -1) {
+            dup2(fd_in, STDIN_FILENO);
+            close(fd_in);
+        }
+        // dup output to stdout
+        if (fd_out != -1) {
+            dup2(fd_out, STDOUT_FILENO);
+            close(fd_out);
+        }
+
         if (execvp(args[0], args) < 0) {
             perror("Exec problem: ");
             _exit(1);
         }
     }
 
-    // also need to parse any args for piping and running in the background
+    
+
+    // if <, open pipeline with output for parent and input for child?
+
+    // if >, open pipeline with output for child and input for parent?
+    // operate roughly normally I think, check execution
+    
+    // also need to parse running in the background running in the background
 
     // parent resumes execution
 
@@ -310,6 +372,10 @@ int call_command(char **args, int num_args) {
     }
     processes[process_index] = process;
     processes[process_index+1] = NULL;
+
+    // wait until child process is done
+    wait(NULL);
+    printf("foreground child killed by wait\n");
 
     return 0;
 }
