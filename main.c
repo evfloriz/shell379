@@ -114,6 +114,41 @@ void free_memory(char **command) {
     free(processes);
 }
 
+// remove process from pcb
+int remove_process(int pid) {
+    int i = 0;
+    while (processes[i] != NULL) {
+        if (processes[i]->pid == pid) {
+            // remove from pcb
+            int pos = i;
+
+            // free the process struct at pos
+            free(processes[pos]->command);
+            free(processes[pos]);
+
+            // move each element greater than pos down 1
+            while (processes[pos] != NULL) {
+                processes[pos] = processes[pos + 1];
+                pos++;
+            }
+            return 0;
+        }
+        i++;
+    }
+    return -1;
+}
+
+int update_process_status(int pid, char status) {
+    int i = 0;
+    while (processes[i] != NULL) {
+        if (processes[i]->pid == pid) {
+            processes[i]->status = status;
+            return 0;
+        }
+    }
+    return -1;
+}
+
 // signal handler
 void sigchld_handler(int sig, siginfo_t *info, void *context) {
     // https://stackoverflow.com/questions/2595503/determine-pid-of-terminated-process
@@ -121,7 +156,18 @@ void sigchld_handler(int sig, siginfo_t *info, void *context) {
     pid_t pid = info->si_pid;
     int status;
 
-    waitpid(pid, &status, WNOHANG);
+    // properly handle child processes
+    waitpid(pid, &status, WNOHANG | WUNTRACED | WCONTINUED);
+    if (WIFEXITED(status)) {
+        // remove process from pcb
+        remove_process(pid);
+    }
+    else if (WIFSTOPPED(status)) {
+        update_process_status(pid, 'S');
+    }
+    else if (WIFCONTINUED(status)) {
+        update_process_status(pid, 'R');
+    }
 }
 
 // handle each kind of command
@@ -129,8 +175,9 @@ void sigchld_handler(int sig, siginfo_t *info, void *context) {
 int call_exit(char **command) {
     // exit program
 
-    //
-    // kill every process i think
+    // should kill every process i think
+
+    // free memory
     free_memory(command);
 
     exit(0);
@@ -157,40 +204,30 @@ int call_jobs() {
 int call_kill(int arg) {
     printf("kill %d called\n", arg);
 
-    int i = 0;
-    while (processes[i] != NULL) {
-        if (processes[i]->pid == arg) {
-            // kill process
-            
-            // this should be moved to a terminate interrupt handler
-            // remove from pcb
-            // move each element greater down 1
-            int pos = i;
-
-            free(processes[pos]->command);
-            free(processes[pos]);
-            
-
-            while (processes[pos] != NULL) {
-                processes[pos] = processes[pos + 1];
-                pos++;
-            }
-            return 0;
-        }
-        i++;
+    // kill process
+    if (kill(arg, SIGKILL) < 0) {
+        perror("Kill error: ");
     }
 
-    return -1;
+    return 0;
+}
+int call_suspend(int arg) {
+    printf("suspend %d called\n", arg);
 
-    // send kill signal to the right pid
-
+    // kill process
+    if (kill(arg, SIGTSTP) < 0) {
+        perror("Suspend error: ");
+    }
 
     return 0;
 }
 int call_resume(int arg) {
     printf("resume %d called\n", arg);
-    // send suspend signal to the right pid
 
+    // resume process
+    if (kill(arg, SIGCONT) < 0) {
+        perror("Resume error: ");
+    }
 
     return 0;
 }
@@ -198,13 +235,6 @@ int call_sleep(int arg) {
     printf("sleep %d called\n", arg);
     // call sleep for the specified number of seconds
 
-
-    return 0;
-}
-int call_suspend(int arg) {
-    printf("suspend %d called\n", arg);
-
-    // send suspend signal to the right pid
 
     return 0;
 }
@@ -217,18 +247,17 @@ int call_wait(int arg) {
 }
 int call_command(char **args, int num_args) {
     
-
     // need to fork a process and add it to the process control block
     int child_pid = fork();
     if (child_pid < 0) {
-        perror("fork problem: ");
+        perror("Fork problem: ");
         _exit(1);
     }
     else if (child_pid == 0) {
         //printf("executing child with pid: %d\n", (int) getpid());
         //if (execve(args[0], args, path_env) < 0) {
         if (execvp(args[0], args) < 0) {
-            perror("exec problem: ");
+            perror("Exec problem: ");
             _exit(1);
         }
     }
@@ -250,21 +279,8 @@ int call_command(char **args, int num_args) {
     while (processes[process_index] != NULL) {
         process_index++;
     }
-    
-    // need a process number?
-    //process->number = process_index;
-    // try changing up pid
-    //process->pid = process_index + 12;
-    
     processes[process_index] = process;
     processes[process_index+1] = NULL;
-
-    /*printf("command called with %d args\n", num_args);
-    for (int i=0; i<num_args; i++) {
-            printf(" %d: %s\n", i, args[i]);
-    }*/
-
-    //free(full_path)
 
     return 0;
 }
