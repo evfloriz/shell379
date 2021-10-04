@@ -154,27 +154,28 @@ int update_process_status(int pid, char status) {
 void sigchld_handler(int sig, siginfo_t *info, void *context) {
     // https://stackoverflow.com/questions/2595503/determine-pid-of-terminated-process
 
-    pid_t pid = info->si_pid;
+    pid_t pid;
     int status;
 
-    printf("kill called on %d\n", pid);
-
     // properly handle child processes
-    waitpid(pid, &status, WNOHANG | WUNTRACED | WCONTINUED);
-    if (WIFEXITED(status) || WIFSIGNALED(status)) {
-        // remove process from pcb
-        remove_process(pid);
-    }
-    else if (WIFSTOPPED(status)) {
-        update_process_status(pid, 'S');
-    }
-    else if (WIFCONTINUED(status)) {
-        update_process_status(pid, 'R');
+    while ((pid = waitpid(-1, &status, WNOHANG | WUNTRACED | WCONTINUED)) > 0) {
+        printf("kill called on %d\n", pid);
+
+        if (WIFEXITED(status) || WIFSIGNALED(status)) {
+            remove_process(pid);
+        }
+        else if (WIFSTOPPED(status)) {
+            update_process_status(pid, 'S');
+        }
+        else if (WIFCONTINUED(status)) {
+            update_process_status(pid, 'R');
+        }
     }
 }
 
 // handle each kind of command
-
+int call_jobs();
+int call_kill();
 int call_exit(char **command) {
     // exit program
 
@@ -196,16 +197,16 @@ int call_exit(char **command) {
     
     // iterate through pids and call kill on each one
     for (int i=0; i<count_pids; i++) {
-        if (kill(pids[i], SIGKILL) < 0) {
-            perror("Kill error: ");
-        }
+        printf("calling kill: %d\n", pids[i]);
+        call_kill(pids[i]);
     }
 
     free(pids);
 
-    // something weird's happening here I think
-    // wait until everything's killed
-    while (wait(NULL) != -1);
+    // wait until everything's deleted from the pcb
+    while (processes[0] != NULL) {
+        //printf("loop\n");
+    }
 
     free(command);
     free(processes);
@@ -228,7 +229,6 @@ int call_jobs() {
         i++;
     }
         
-
     return 0;
 }
 int call_kill(int arg) {
@@ -416,7 +416,6 @@ int main() {
     // specify restart in case interrupt happens while waiting for fgets
     sa.sa_flags = SA_RESTART | SA_SIGINFO;
     sigemptyset(&sa.sa_mask);
-    //sa.sa_handler = sigchld_handler;
     sa.sa_sigaction = sigchld_handler;
     sigaction(SIGCHLD, &sa, NULL);
     
