@@ -17,3 +17,6 @@ add
 
 input
 output1
+
+# ignore zipped assignment
+assignment1.zip
