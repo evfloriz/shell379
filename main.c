@@ -140,6 +140,44 @@ int remove_process(int pid) {
     return -1;
 }
 
+int update_time() {
+    FILE *pfile;
+
+    if ((pfile = popen("ps -o pid,times --no-headers", "r")) == NULL) {
+        perror("Pipe open failure: ");
+        return -1;
+    }
+    
+    int n = 128;
+    char ps_line[n];
+    char **times;
+    int num_args = 2;
+    while (fgets(ps_line, n, pfile) != NULL) {
+        printf("Line: %s", ps_line);
+        
+        times = split_string(ps_line, &num_args);
+        
+        int i = 0;
+        while (processes[i] != NULL) {
+            // if pid matches, update seconds
+            if (processes[i]->pid == atoi(times[0])) {
+                processes[i]->time = atoi(times[1]);
+                printf("match\n");
+            }
+            i++;
+        }
+    }
+    if (pclose(pfile) < 0) {
+        perror("Pipe close failure: ");
+    }
+    
+    printf("update time\n");
+
+    
+
+    return 0;
+}
+
 int update_process_status(int pid, char status) {
     int i = 0;
     while (processes[i] != NULL) {
@@ -227,6 +265,8 @@ int call_exit(char **command) {
     exit(0);
 }
 int call_jobs() {
+    update_time();
+    
     // print jobs from the table
     printf(" # |     PID | S | SEC | COMMAND\n");
     
@@ -361,6 +401,8 @@ int call_command(char **args, int num_args) {
             dup2(fd_out, STDOUT_FILENO);
             close(fd_out);
         }
+
+        printf("%s\n", args[0]);
 
         if (execvp(args[0], args) < 0) {
             perror("Exec problem: ");
